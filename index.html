@@ -303,36 +303,6 @@
             font-weight: bold;
         }
         
-        .leaderboard {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            margin-top: 20px;
-        }
-        
-        .leaderboard-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            margin-bottom: 10px;
-            align-items: center;
-        }
-        
-        .leaderboard-item.first { 
-            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%); 
-        }
-        
-        .leaderboard-item.second { 
-            background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%); 
-        }
-        
-        .leaderboard-item.third { 
-            background: linear-gradient(135deg, #cd7f32 0%, #e8a87c 100%); 
-            color: white; 
-        }
-        
         .memory-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -529,7 +499,7 @@
         <p id="authMessage" style="margin-top: 15px; text-align: center; font-size: 14px;"></p>
     </div>
 
-    <!-- Pantalla Principal (oculta hasta login) -->
+    <!-- Pantalla Principal -->
     <div id="app-screen" style="display: none;">
         <div id="userInfo" class="user-info">
             <span id="userEmail"></span>
@@ -612,6 +582,27 @@ Ana" style="min-height: 150px; margin: 15px 0;"></textarea>
 
             <!-- Tab de Administración -->
             <div id="admin" class="tab-content">
+                <!-- SECCIÓN IA -->
+                <div class="admin-section" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <h3 style="color: white;">🤖 Generar Contenido con IA (GRATIS)</h3>
+                    <p style="margin-bottom: 15px; opacity: 0.9;">Usa Hugging Face para generar contenido educativo automáticamente - 100% GRATIS</p>
+                    <div class="form-group">
+                        <label style="color: white;">Tema a generar:</label>
+                        <input type="text" id="aiTema" placeholder="Ej: Animales de la selva, Planetas, Verbos irregulares">
+                    </div>
+                    <div class="form-group">
+                        <label style="color: white;">Número de items:</label>
+                        <input type="number" id="aiNumItems" value="10" min="5" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label style="color: white;">Tu API Key de Hugging Face (GRATIS - solo primera vez):</label>
+                        <input type="password" id="aiApiKey" placeholder="hf_...">
+                        <small style="display: block; margin-top: 5px; opacity: 0.8;">Obtén tu key GRATIS en huggingface.co/settings/tokens</small>
+                    </div>
+                    <button onclick="generarConIA()" style="background: #ffd700; color: #333; width: 100%;">✨ Generar con IA</button>
+                    <p id="aiStatus" style="margin-top: 15px; font-size: 14px;"></p>
+                </div>
+
                 <div class="admin-section">
                     <h3>➕ Agregar Nuevo Curso</h3>
                     <div class="form-group">
@@ -652,7 +643,7 @@ verbo|Clase de palabra"></textarea>
         </div>
     </div>
 
-    <script>// Configuración Supabase
+    <script>
         const { createClient } = supabase;
         const supabaseClient = createClient(
             'https://pkzlsexmhpmresvaseqg.supabase.co',
@@ -660,8 +651,7 @@ verbo|Clase de palabra"></textarea>
         );
         
         let currentUser = null;
-        
-        // Variables globales
+        let claudeApiKey = localStorage.getItem('claudeApiKey') || '';// Variables globales
         let appData = {
             cursos: [{
                 id: 1,
@@ -687,8 +677,128 @@ verbo|Clase de palabra"></textarea>
         let currentTema = null;
         let gameState = {};
         let currentPlayer = null;
+        let hfApiKey = localStorage.getItem('hfApiKey') || '';
         
-        // Funciones de autenticación
+        // FUNCIÓN IA - GENERADOR DE CONTENIDO CON HUGGING FACE
+        async function generarConIA() {
+            const tema = document.getElementById('aiTema').value.trim();
+            const numItems = parseInt(document.getElementById('aiNumItems').value);
+            const keyInput = document.getElementById('aiApiKey').value.trim();
+            const status = document.getElementById('aiStatus');
+            
+            if (!tema) {
+                status.textContent = '❌ Ingresa un tema';
+                status.style.color = '#ffcccc';
+                return;
+            }
+            
+            // Guardar API key si se proporcionó
+            if (keyInput && keyInput.startsWith('hf_')) {
+                hfApiKey = keyInput;
+                localStorage.setItem('hfApiKey', keyInput);
+            }
+            
+            if (!hfApiKey) {
+                status.textContent = '❌ Necesitas ingresar tu API Key de Hugging Face';
+                status.style.color = '#ffcccc';
+                return;
+            }
+            
+            status.textContent = '⏳ Generando con IA... (puede tardar 10-20 segundos)';
+            status.style.color = '#ffd700';
+            
+            try {
+                const prompt = `Genera exactamente ${numItems} conceptos educativos sobre "${tema}".
+
+Formato EXACTO (una línea por item):
+concepto|categoría
+
+Ejemplo para "Animales de la granja":
+vaca|Mamífero
+gallina|Ave
+cerdo|Mamífero
+oveja|Mamífero
+
+IMPORTANTE: 
+- Solo devuelve las líneas en formato concepto|categoría
+- No agregues explicaciones, títulos ni texto adicional
+- Exactamente ${numItems} líneas`;
+
+                const response = await fetch(
+                    'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2',
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${hfApiKey}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            inputs: prompt,
+                            parameters: {
+                                max_new_tokens: 500,
+                                temperature: 0.7,
+                                return_full_text: false
+                            }
+                        })
+                    }
+                );
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        throw new Error('API Key inválida');
+                    } else if (response.status === 503) {
+                        throw new Error('Modelo cargando, espera 20 segundos y reintenta');
+                    }
+                    throw new Error('Error en la API: ' + response.status);
+                }
+                
+                const data = await response.json();
+                let contenido = '';
+                
+                if (Array.isArray(data) && data[0]?.generated_text) {
+                    contenido = data[0].generated_text;
+                } else if (data.generated_text) {
+                    contenido = data.generated_text;
+                } else {
+                    throw new Error('Formato de respuesta inesperado');
+                }
+                
+                // Limpiar el contenido
+                const lineasLimpias = contenido
+                    .split('\n')
+                    .map(l => l.trim())
+                    .filter(l => l && l.includes('|') && !l.startsWith('#') && !l.toLowerCase().includes('ejemplo'))
+                    .slice(0, numItems)
+                    .join('\n');
+                
+                if (!lineasLimpias) {
+                    throw new Error('No se generó contenido válido. Reintenta.');
+                }
+                
+                document.getElementById('temaContenido').value = lineasLimpias;
+                document.getElementById('temaNombre').value = tema;
+                
+                status.textContent = '✅ ¡Contenido generado! Revisa abajo y haz clic en "Agregar Tema" para guardar';
+                status.style.color = '#90EE90';
+                
+                setTimeout(() => {
+                    document.getElementById('temaNombre').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+                
+            } catch (error) {
+                if (error.message.includes('API Key inválida')) {
+                    status.textContent = '❌ API Key inválida. Verifica tu key en huggingface.co';
+                } else if (error.message.includes('Modelo cargando')) {
+                    status.textContent = '⏳ Modelo iniciando... Espera 20 segundos y presiona "Generar" otra vez';
+                } else {
+                    status.textContent = '❌ Error: ' + error.message + ' - Reintenta en unos segundos';
+                }
+                status.style.color = '#ffcccc';
+                console.error('Error IA:', error);
+            }
+        }
+        
+        // Autenticación Supabase
         async function signUp() {
             const email = document.getElementById('authEmail').value.trim();
             const password = document.getElementById('authPassword').value;
@@ -715,7 +825,7 @@ verbo|Clase de palabra"></textarea>
                 msg.textContent = 'Error: ' + error.message;
                 msg.style.color = '#e74c3c';
             } else {
-                msg.textContent = '¡Cuenta creada! Revisa tu email para confirmar y luego inicia sesión';
+                msg.textContent = '¡Cuenta creada! Inicia sesión';
                 msg.style.color = '#27ae60';
             }
         }
@@ -757,13 +867,14 @@ verbo|Clase de palabra"></textarea>
             document.getElementById('auth-screen').style.display = 'none';
             document.getElementById('app-screen').style.display = 'block';
             document.getElementById('userEmail').textContent = currentUser.email;
+            if (hfApiKey) {
+                document.getElementById('aiApiKey').value = '••••••••';
+            }
             init();
         }
         
-        // Funciones de Supabase
         async function saveToSupabase() {
             if (!currentUser) return;
-            
             showSyncStatus('Guardando...');
             
             const { error } = await supabaseClient
@@ -807,7 +918,6 @@ verbo|Clase de palabra"></textarea>
             }, 2000);
         }
         
-        // Sistema de sonidos
         let audioCtx = null;
         function initAudio() {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1006,7 +1116,6 @@ verbo|Clase de palabra"></textarea>
             document.getElementById('game-selection').style.display = 'block';
         }
         
-        // Rueda de nombres
         function sortearNombre() {
             const input = document.getElementById('nombresInput').value.trim();
             if (!input) return alert('Ingresa nombres');
@@ -1017,7 +1126,6 @@ verbo|Clase de palabra"></textarea>
             createConfetti();
         }
         
-        // Sistema de jugadores
         function askPlayerName(callback) {
             const area = document.getElementById('game-area');
             area.innerHTML = `
@@ -1050,7 +1158,6 @@ verbo|Clase de palabra"></textarea>
             }
         }
         
-        // Inicio de juegos (SIN wordsearch)
         function startGame(type) {
             document.getElementById('game-selection').style.display = 'none';
             document.getElementById('game-area').style.display = 'block';
