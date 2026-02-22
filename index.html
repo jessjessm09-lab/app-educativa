@@ -651,35 +651,7 @@ verbo|Clase de palabra"></textarea>
         );
         
         let currentUser = null;
-        let claudeApiKey = localStorage.getItem('claudeApiKey') || '';// Variables globales
-        let appData = {
-            cursos: [{
-                id: 1,
-                nombre: "2do Año",
-                temas: [{
-                    id: 1,
-                    nombre: "Clases de Palabras",
-                    items: [
-                        {concepto: "sustantivo", categoria: "Clase de palabra"},
-                        {concepto: "adjetivo", categoria: "Clase de palabra"},
-                        {concepto: "verbo", categoria: "Clase de palabra"},
-                        {concepto: "adverbio", categoria: "Clase de palabra"},
-                        {concepto: "mesa", categoria: "Sustantivo"},
-                        {concepto: "correr", categoria: "Verbo"},
-                        {concepto: "azul", categoria: "Adjetivo"}
-                    ]
-                }]
-            }],
-            leaderboard: []
-        };
-        
-        let currentCurso = null;
-        let currentTema = null;
-        let gameState = {};
-        let currentPlayer = null;
-        let hfApiKey = localStorage.getItem('hfApiKey') || '';
-        
-       // Variables globales
+        let hfApiKey = localStorage.getItem('hfApiKey') || '';// Variables globales
         let appData = {
             cursos: [{
                 id: 1,
@@ -1195,7 +1167,6 @@ IMPORTANTE:
                     case 'match': initMatchGame(); break;
                 }
             });
-        }
         }// JUEGO 1: MEMORIA
         function initMemoryGame() {
             const area = document.getElementById('game-area');
