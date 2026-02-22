@@ -679,7 +679,35 @@ verbo|Clase de palabra"></textarea>
         let currentPlayer = null;
         let hfApiKey = localStorage.getItem('hfApiKey') || '';
         
-        // FUNCIÓN IA - GENERADOR DE CONTENIDO CON HUGGING FACE
+       // Variables globales
+        let appData = {
+            cursos: [{
+                id: 1,
+                nombre: "2do Año",
+                temas: [{
+                    id: 1,
+                    nombre: "Clases de Palabras",
+                    items: [
+                        {concepto: "sustantivo", categoria: "Clase de palabra"},
+                        {concepto: "adjetivo", categoria: "Clase de palabra"},
+                        {concepto: "verbo", categoria: "Clase de palabra"},
+                        {concepto: "adverbio", categoria: "Clase de palabra"},
+                        {concepto: "mesa", categoria: "Sustantivo"},
+                        {concepto: "correr", categoria: "Verbo"},
+                        {concepto: "azul", categoria: "Adjetivo"}
+                    ]
+                }]
+            }],
+            leaderboard: []
+        };
+        
+        let currentCurso = null;
+        let currentTema = null;
+        let gameState = {};
+        let currentPlayer = null;
+        let hfApiKey = localStorage.getItem('hfApiKey') || '';
+        
+        // FUNCIÓN IA - GENERADOR CON HUGGING FACE (CON PROXY CORS)
         async function generarConIA() {
             const tema = document.getElementById('aiTema').value.trim();
             const numItems = parseInt(document.getElementById('aiNumItems').value);
@@ -692,7 +720,6 @@ verbo|Clase de palabra"></textarea>
                 return;
             }
             
-            // Guardar API key si se proporcionó
             if (keyInput && keyInput.startsWith('hf_')) {
                 hfApiKey = keyInput;
                 localStorage.setItem('hfApiKey', keyInput);
@@ -704,7 +731,7 @@ verbo|Clase de palabra"></textarea>
                 return;
             }
             
-            status.textContent = '⏳ Generando con IA... (puede tardar 10-20 segundos)';
+            status.textContent = '⏳ Generando con IA... (puede tardar 20-30 segundos)';
             status.style.color = '#ffd700';
             
             try {
@@ -724,12 +751,12 @@ IMPORTANTE:
 - No agregues explicaciones, títulos ni texto adicional
 - Exactamente ${numItems} líneas`;
 
+                // Usar proxy CORS para evitar bloqueos
                 const response = await fetch(
-                    'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2',
+                    'https://corsproxy.io/?' + encodeURIComponent('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2'),
                     {
                         method: 'POST',
                         headers: {
-                            'Authorization': `Bearer ${hfApiKey}`,
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
@@ -738,17 +765,20 @@ IMPORTANTE:
                                 max_new_tokens: 500,
                                 temperature: 0.7,
                                 return_full_text: false
+                            },
+                            options: {
+                                use_cache: false,
+                                wait_for_model: true
+                            },
+                            // API key en el body para proxy
+                            headers: {
+                                'Authorization': `Bearer ${hfApiKey}`
                             }
                         })
                     }
                 );
                 
                 if (!response.ok) {
-                    if (response.status === 401) {
-                        throw new Error('API Key inválida');
-                    } else if (response.status === 503) {
-                        throw new Error('Modelo cargando, espera 20 segundos y reintenta');
-                    }
                     throw new Error('Error en la API: ' + response.status);
                 }
                 
@@ -763,7 +793,6 @@ IMPORTANTE:
                     throw new Error('Formato de respuesta inesperado');
                 }
                 
-                // Limpiar el contenido
                 const lineasLimpias = contenido
                     .split('\n')
                     .map(l => l.trim())
@@ -786,13 +815,7 @@ IMPORTANTE:
                 }, 100);
                 
             } catch (error) {
-                if (error.message.includes('API Key inválida')) {
-                    status.textContent = '❌ API Key inválida. Verifica tu key en huggingface.co';
-                } else if (error.message.includes('Modelo cargando')) {
-                    status.textContent = '⏳ Modelo iniciando... Espera 20 segundos y presiona "Generar" otra vez';
-                } else {
-                    status.textContent = '❌ Error: ' + error.message + ' - Reintenta en unos segundos';
-                }
+                status.textContent = '❌ Error: ' + error.message + ' - Reintenta en unos segundos';
                 status.style.color = '#ffcccc';
                 console.error('Error IA:', error);
             }
@@ -977,7 +1000,6 @@ IMPORTANTE:
             event.target.classList.add('active');
         }
         
-        // Administración
         async function agregarCurso() {
             const nombre = document.getElementById('cursoNombre').value.trim();
             if (!nombre) return alert('Ingresa un nombre');
@@ -1173,6 +1195,7 @@ IMPORTANTE:
                     case 'match': initMatchGame(); break;
                 }
             });
+        }
         }// JUEGO 1: MEMORIA
         function initMemoryGame() {
             const area = document.getElementById('game-area');
