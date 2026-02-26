@@ -678,7 +678,7 @@ let currentTema = null;
 let gameState = {};
 let currentPlayer = null;
 
-// FUNCIÓN IA CON PROXY CORS
+// FUNCIÓN IA - DIRECTO A HUGGING FACE
 async function generarConIA() {
     const tema = document.getElementById('aiTema').value.trim();
     const numItems = parseInt(document.getElementById('aiNumItems').value);
@@ -702,48 +702,44 @@ async function generarConIA() {
         return;
     }
     
-    status.textContent = '⏳ Generando con IA... (puede tardar 20-30 segundos)';
+    status.textContent = '⏳ Generando con IA... (30-40 segundos primera vez)';
     status.style.color = '#ffd700';
     
     try {
-        const prompt = `Genera exactamente ${numItems} conceptos educativos sobre "${tema}".
-
-Formato EXACTO (una línea por item):
-concepto|categoría
-
+        const prompt = `Genera ${numItems} conceptos sobre "${tema}".
+Formato: concepto|categoría
 Ejemplo:
-vaca|Mamífero
-gallina|Ave
-
-IMPORTANTE: Solo líneas en formato concepto|categoría, exactamente ${numItems} líneas`;
+león|Carnívoro
+jirafa|Herbívoro`;
 
         const response = await fetch(
-            'https://corsproxy.io/?' + encodeURIComponent('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2'),
+            'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2',
             {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + hfApiKey,
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     inputs: prompt,
                     parameters: {
-                        max_new_tokens: 500,
+                        max_new_tokens: 300,
                         temperature: 0.7,
                         return_full_text: false
                     },
                     options: {
-                        use_cache: false,
                         wait_for_model: true
-                    },
-                    headers: {
-                        'Authorization': `Bearer ${hfApiKey}`
                     }
                 })
             }
         );
         
         if (!response.ok) {
-            throw new Error('Error en la API: ' + response.status);
+            const errorText = await response.text();
+            if (response.status === 503) {
+                throw new Error('Modelo cargando. Espera 30 segundos y presiona de nuevo');
+            }
+            throw new Error('API Error ' + response.status);
         }
         
         const data = await response.json();
@@ -753,33 +749,36 @@ IMPORTANTE: Solo líneas en formato concepto|categoría, exactamente ${numItems}
             contenido = data[0].generated_text;
         } else if (data.generated_text) {
             contenido = data.generated_text;
+        } else if (data.error) {
+            throw new Error(data.error);
         } else {
-            throw new Error('Formato de respuesta inesperado');
+            throw new Error('Respuesta inesperada');
         }
         
-        const lineasLimpias = contenido
+        const lineas = contenido
             .split('\n')
             .map(l => l.trim())
-            .filter(l => l && l.includes('|') && !l.startsWith('#') && !l.toLowerCase().includes('ejemplo'))
-            .slice(0, numItems)
-            .join('\n');
+            .filter(l => l && l.includes('|'))
+            .filter(l => !l.toLowerCase().includes('ejemplo'))
+            .filter(l => !l.toLowerCase().includes('formato'))
+            .slice(0, numItems);
         
-        if (!lineasLimpias) {
-            throw new Error('No se generó contenido válido. Reintenta.');
+        if (lineas.length === 0) {
+            throw new Error('No se generó contenido. Reintenta con otro tema');
         }
         
-        document.getElementById('temaContenido').value = lineasLimpias;
+        document.getElementById('temaContenido').value = lineas.join('\n');
         document.getElementById('temaNombre').value = tema;
         
-        status.textContent = '✅ ¡Contenido generado! Revisa abajo y haz clic en "Agregar Tema"';
+        status.textContent = '✅ ¡Listo! Revisa abajo y haz clic en "Agregar Tema"';
         status.style.color = '#90EE90';
         
         setTimeout(() => {
-            document.getElementById('temaNombre').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('temaNombre').scrollIntoView({ behavior: 'smooth' });
         }, 100);
         
     } catch (error) {
-        status.textContent = '❌ Error: ' + error.message + ' - Reintenta';
+        status.textContent = '❌ ' + error.message;
         status.style.color = '#ffcccc';
         console.error('Error IA:', error);
     }
